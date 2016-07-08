@@ -9,8 +9,10 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -29,6 +31,7 @@ public class App {
     private static final String DATASETS_FILENAME = "datasets.out";
     private static final String FORUMS_FILENAME = "forums.out";
     private static final String SCRIPTS_JSON = "https://www.kaggle.com/scripts/d/";
+    private static final String SCRIPTS_SRC = "https://www.kaggle.com/scripts/sourceurl/";
 
     public static void main(String[] args) {
         try {
@@ -39,22 +42,32 @@ public class App {
             f.createNewFile();
 
             //Do datasets!
-            for (int i = 0; i < 100; i++) {
-                List<Map<String, Object>> scripts;
-                int page = 0;
-                do {
-                    String scriptUrl = SCRIPTS_JSON + i + "/" + page;
-                    System.out.println("\n" + scriptUrl);
-                    URL url = new URL(scriptUrl);
-                    ObjectMapper mapper = new ObjectMapper();
-                    scripts = mapper.readValue(url, List.class);
+            /**
+             for (int i = 0; i < 100; i++) {
+             List<Map<String, Object>> scripts;
+             int page = 0;
+             do {
+             String scriptUrl = SCRIPTS_JSON + i + "/" + page;
+             System.out.println("\n" + scriptUrl);
+             URL url = new URL(scriptUrl);
+             ObjectMapper mapper = new ObjectMapper();
+             scripts = mapper.readValue(url, List.class);
 
-                    for (Map<String, Object> script : scripts) {
-                        handleScriptPage(script.get("scriptUrl") + "/code");
+             for (Map<String, Object> script : scripts) {
+             handleScriptPage(script.get("scriptUrl") + "/code");
 
-                    }
-                    page += 15;
-                } while (scripts.size() > 0);
+             }
+             page += 15;
+             } while (scripts.size() > 0);
+             }
+             **/
+
+            for (int i = 0; i < 350000; i++) {
+                Document scriptSrc = Jsoup.connect(SCRIPTS_SRC + i).timeout(0).get();
+                String scriptUrl = scriptSrc.select("body").text();
+                if (scriptUrl.length() > 0) {
+                    handleScriptSource(scriptUrl);
+                }
             }
 
             //Do forums!
@@ -164,6 +177,34 @@ public class App {
                     Files.write(Paths.get(DATASETS_FILENAME), SEPARATOR.getBytes(), StandardOpenOption.APPEND);
                 } catch (IOException e) {
                     e.printStackTrace();
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void handleScriptSource(String link) {
+        try {
+            System.out.println("Trying script from: " + link);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            InputStream is = null;
+            try {
+                URL url = new URL(link);
+                is = url.openStream();
+                byte[] byteChunk = new byte[4096]; // Or whatever size you want to read in at a time.
+                int n;
+
+                while ((n = is.read(byteChunk)) > 0) {
+                    baos.write(byteChunk, 0, n);
+                }
+                Files.write(Paths.get(DATASETS_FILENAME), baos.toByteArray(), StandardOpenOption.APPEND);
+                Files.write(Paths.get(DATASETS_FILENAME), SEPARATOR.getBytes(), StandardOpenOption.APPEND);
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                if (is != null) {
+                    is.close();
                 }
             }
         } catch (Exception e) {
